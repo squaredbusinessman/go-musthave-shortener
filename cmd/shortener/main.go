@@ -61,7 +61,11 @@ func (s *shortener) GetURLFromID() http.HandlerFunc {
 			return
 		}
 
-		ID := r.URL.Query().Get("id")
+		ID := strings.TrimPrefix(r.URL.Path, "/")
+		if ID == "" {
+			http.Error(w, "URL not found", http.StatusNotFound)
+			return
+		}
 		s.mu.RLock()
 		url, ok := s.storage[ID]
 		s.mu.RUnlock()
@@ -69,13 +73,7 @@ func (s *shortener) GetURLFromID() http.HandlerFunc {
 			http.Error(w, "URL not found", http.StatusNotFound)
 			return
 		}
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusTemporaryRedirect)
-		_, err := io.WriteString(w, url)
-		if err != nil {
-			log.Printf("Failed to write get-response: %v", err)
-		}
-
+		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 	}
 }
 
