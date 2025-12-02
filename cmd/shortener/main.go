@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type shortener struct {
@@ -61,7 +63,7 @@ func (s *shortener) GetURLFromID() http.HandlerFunc {
 			return
 		}
 
-		ID := strings.TrimPrefix(r.URL.Path, "/")
+		ID := chi.URLParam(r, "id")
 		if ID == "" {
 			http.Error(w, "URL not found", http.StatusNotFound)
 			return
@@ -81,11 +83,14 @@ func main() {
 	s := &shortener{
 		storage: make(map[string]string),
 	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.PostingURL())
-	mux.HandleFunc("/{id}", s.GetURLFromID())
 
-	err := http.ListenAndServe(":8080", mux)
+	r := chi.NewRouter()
+
+	r.Post("/", s.PostingURL())
+	r.Get("/{id}", s.GetURLFromID())
+
+	log.Println("shortener server listening on :8080")
+	err := http.ListenAndServe(":8080", r)
 	if err != nil {
 		panic(err)
 	}
