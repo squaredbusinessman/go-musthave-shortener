@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func TestPostingURL(t *testing.T) {
@@ -104,11 +107,19 @@ func TestGetURLFromID(t *testing.T) {
 		sampleURL = "http://example.com/alpha"
 	)
 
+	withRouteParam := func(r *http.Request, key, value string) *http.Request {
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add(key, value)
+		ctx := context.WithValue(r.Context(), chi.RouteCtxKey, rctx)
+		return r.WithContext(ctx)
+	}
+
 	tests := []struct {
 		name         string
 		method       string
 		path         string
 		storage      map[string]string
+		paramValue   *string
 		wantStatus   int
 		wantBody     string
 		wantLocation string
@@ -118,6 +129,7 @@ func TestGetURLFromID(t *testing.T) {
 			method:       http.MethodGet,
 			path:         "/" + mockID,
 			storage:      map[string]string{mockID: sampleURL},
+			paramValue:   strPtr(mockID),
 			wantStatus:   http.StatusTemporaryRedirect,
 			wantLocation: sampleURL,
 		},
@@ -126,6 +138,7 @@ func TestGetURLFromID(t *testing.T) {
 			method:     http.MethodGet,
 			path:       "/unknown",
 			storage:    map[string]string{mockID: sampleURL},
+			paramValue: strPtr("unknown"),
 			wantStatus: http.StatusNotFound,
 			wantBody:   "URL not found\n",
 		},
@@ -142,6 +155,7 @@ func TestGetURLFromID(t *testing.T) {
 			method:     http.MethodPost,
 			path:       "/" + mockID,
 			storage:    map[string]string{mockID: sampleURL},
+			paramValue: strPtr(mockID),
 			wantStatus: http.StatusMethodNotAllowed,
 			wantBody:   "Method not allowed\n",
 		},
@@ -156,6 +170,9 @@ func TestGetURLFromID(t *testing.T) {
 
 			handler := s.GetURLFromID()
 			req := httptest.NewRequest(tt.method, tt.path, nil)
+			if tt.paramValue != nil {
+				req = withRouteParam(req, "id", *tt.paramValue)
+			}
 			resp := httptest.NewRecorder()
 
 			handler(resp, req)
@@ -177,4 +194,8 @@ func TestGetURLFromID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func strPtr(v string) *string {
+	return &v
 }
